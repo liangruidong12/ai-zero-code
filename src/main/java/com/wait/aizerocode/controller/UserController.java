@@ -14,6 +14,7 @@ import com.wait.aizerocode.model.dto.user.*;
 import com.wait.aizerocode.model.vo.LoginUserVO;
 import com.wait.aizerocode.model.vo.UserVO;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -50,8 +51,8 @@ public class UserController {
      * @return
      */
      @GetMapping("/get/login")
-     public BaseResponse<UserVO> getUser(HttpServletRequest request){
-         UserVO user = userService.getUser(request);
+     public BaseResponse<User> getUser(HttpServletRequest request){
+         User user = userService.getUser(request);
          return ResultUtils.success(user);
      }
     /**
@@ -61,9 +62,11 @@ public class UserController {
      * @return 脱敏用户信息
      */
      @PostMapping("login")
-     public BaseResponse<LoginUserVO> userLogin(@RequestBody UserLoginRequest userLoginRequest, HttpServletRequest request){
+     public BaseResponse<User> userLogin(@RequestBody UserLoginRequest userLoginRequest, HttpServletRequest request){
          LoginUserVO loginUser = userService.getLoginUser(userLoginRequest, request);
-         return ResultUtils.success(loginUser);
+         User user=new User();
+         BeanUtils.copyProperties(loginUser,user);
+         return ResultUtils.success(user);
      }
 
     /**

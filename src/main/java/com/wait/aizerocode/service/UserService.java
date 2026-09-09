@@ -21,7 +21,7 @@ public interface UserService extends IService<User> {
 
     boolean userLogout(HttpServletRequest request);
     //获取当前用户
-    UserVO getUser(HttpServletRequest request);
+    User getUser(HttpServletRequest request);
 
     //用户登录
     LoginUserVO getLoginUser(UserLoginRequest userLoginRequest, HttpServletRequest request);

@@ -6,8 +6,10 @@ import com.wait.aizerocode.model.dto.app.AppAddRequest;
 import com.wait.aizerocode.model.dto.app.AppQueryRequest;
 import com.wait.aizerocode.model.dto.app.AppUpdateRequest;
 import com.wait.aizerocode.model.entity.App;
+import com.wait.aizerocode.model.entity.User;
 import com.wait.aizerocode.model.vo.AppVO;
 import jakarta.servlet.http.HttpServletRequest;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -17,6 +19,10 @@ import java.util.List;
  * @author waitwait
  */
 public interface AppService extends IService<App> {
+
+
+
+    String deployApp(Long appId,User loginUser);
 
     /**
      * 创建应用
@@ -68,4 +74,8 @@ public interface AppService extends IService<App> {
      * @return 查询条件
      */
     QueryWrapper getQueryWrapper(AppQueryRequest appQueryRequest);
+
+
+    Flux<String> chatToGenCode(Long appId, String message, User login);
+
 }

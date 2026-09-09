@@ -32,7 +32,7 @@ public class AuthInterceptor {
         HttpServletRequest request=((ServletRequestAttributes) requestAttributes).getRequest();
 
 
-        UserVO loginUser = userService.getUser(request);
+        User loginUser = userService.getUser(request);
         UserRoleEnum mustRoleEnum = UserRoleEnum.getEnumByValue(mustRole);
 
         //不需要权限的们，直接放行

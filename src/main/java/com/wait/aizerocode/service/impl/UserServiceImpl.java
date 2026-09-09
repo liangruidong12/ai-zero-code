@@ -50,14 +50,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>  implements U
     }
 
     @Override
-    public UserVO getUser(HttpServletRequest request) {
+    public User getUser(HttpServletRequest request) {
         Object attribute = request.getSession().getAttribute(UserConstant.USER_LOGIN_STATE);
         if(attribute==null)
             throw new BusinessException(ErrorCode.PARAMS_ERROR,"用户未登录");
         LoginUserVO loginuserVO = (LoginUserVO)attribute;
-        UserVO userVO = new UserVO();
-        BeanUtils.copyProperties(loginuserVO,userVO);
-        return userVO;
+        User user = new User();
+        BeanUtils.copyProperties(loginuserVO,user);
+        return user;
     }
 
     @Override

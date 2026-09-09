@@ -1,6 +1,8 @@
 package com.wait.aizerocode.controller;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.util.StrUtil;
+import cn.hutool.json.JSONUtil;
 import com.mybatisflex.core.paginate.Page;
 import com.wait.aizerocode.annotation.AuthCheck;
 import com.wait.aizerocode.common.BaseResponse;
@@ -10,24 +12,27 @@ import com.wait.aizerocode.constant.UserConstant;
 import com.wait.aizerocode.exception.BusinessException;
 import com.wait.aizerocode.exception.ErrorCode;
 import com.wait.aizerocode.exception.ThrowUtils;
-import com.wait.aizerocode.model.dto.app.AppAddRequest;
-import com.wait.aizerocode.model.dto.app.AppAdminUpdateRequest;
-import com.wait.aizerocode.model.dto.app.AppQueryRequest;
-import com.wait.aizerocode.model.dto.app.AppUpdateRequest;
+import com.wait.aizerocode.model.dto.app.*;
 import com.wait.aizerocode.model.entity.App;
+import com.wait.aizerocode.model.entity.User;
 import com.wait.aizerocode.model.vo.AppVO;
 import com.wait.aizerocode.model.vo.UserVO;
 import com.wait.aizerocode.service.AppService;
 import com.wait.aizerocode.service.UserService;
+
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestClient;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
+import java.awt.*;
 import java.util.List;
+import java.util.Map;
+
 
 /**
  * 应用 控制层。
@@ -43,6 +48,60 @@ public class AppController {
 
     @Autowired
     private UserService userService;
+    @Autowired
+    private RestClient.Builder builder;
+
+
+
+    @PostMapping("/deploy")
+    public BaseResponse<String> deployApp(@RequestBody AppDeployRequest appDeployRequest, HttpServletRequest request) {
+        // 检查部署请求是否为空
+        ThrowUtils.throwIf(appDeployRequest == null, ErrorCode.PARAMS_ERROR);
+        // 获取应用 ID
+        Long appId = appDeployRequest.getAppId();
+        // 检查应用 ID 是否为空
+        ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用 ID 不能为空");
+        // 获取当前登录用户
+        User loginUser = userService.getUser(request);
+        // 调用服务部署应用
+        String deployUrl = appService.deployApp(appId, loginUser);
+        // 返回部署 URL
+        return ResultUtils.success(deployUrl);
+    }
+
+
+    //流式接口开发
+    @GetMapping(value="/chat/gen/code",produces= MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<String>> chatToGenCode(@RequestParam Long appId,@RequestParam String message,HttpServletRequest request){
+        ThrowUtils.throwIf(appId==null||appId<0,ErrorCode.PARAMS_ERROR,"应用id无效");
+        ThrowUtils.throwIf(StrUtil.isBlank(message),ErrorCode.PARAMS_ERROR);
+
+        User user = userService.getUser(request);
+
+
+        Flux<String> flux = appService.chatToGenCode(appId, message, user);
+
+        return flux.map(chunk->
+                {
+                    Map<String, String> wrapper = Map.of("d", chunk);
+                    String jsonDate= JSONUtil.toJsonStr(wrapper);
+                    return ServerSentEvent.<String>builder()
+                            .data(jsonDate)
+                            .build();
+
+                }
+        ).concatWith(Mono.just(
+                ServerSentEvent.<String>builder()
+                        .event("done")
+                        .data("")
+                        .build()
+        ));
+
+
+
+    }
+
+
 
     // ==================== 用户端接口 ====================
 
@@ -119,7 +178,7 @@ public class AppController {
     @PostMapping("/my/list/page")
     public BaseResponse<Page<AppVO>> listMyAppVOByPage(@RequestBody AppQueryRequest appQueryRequest, HttpServletRequest request) {
         ThrowUtils.throwIf(appQueryRequest == null, ErrorCode.PARAMS_ERROR);
-        UserVO loginUser = userService.getUser(request);
+        User loginUser = userService.getUser(request);
         long pageNum = appQueryRequest.getPageNum();
         long pageSize = appQueryRequest.getPageSize();
         // 每页最多 20 条
