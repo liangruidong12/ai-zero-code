@@ -4,6 +4,7 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.mybatisflex.core.paginate.Page;
+import com.mybatisflex.core.query.QueryWrapper;
 import com.wait.aizerocode.annotation.AuthCheck;
 import com.wait.aizerocode.common.BaseResponse;
 import com.wait.aizerocode.common.DeleteRequest;
@@ -186,7 +187,10 @@ public class AppController {
         // 仅查询当前用户的应用
 
         appQueryRequest.setUserId(loginUser.getId());
-        Page<App> appPage = appService.page(Page.of(pageNum, pageSize), appService.getQueryWrapper(appQueryRequest));
+        QueryWrapper wrapper = appService.getQueryWrapper(appQueryRequest);
+
+        Page<App> appPage = appService.page(Page.of(pageNum, pageSize), wrapper);
+
         Page<AppVO> appVOPage = new Page<>(pageNum, pageSize, appPage.getTotalRow());
 
         List<AppVO> appVOList = appService.getAppVOList(appPage.getRecords());
@@ -204,8 +208,7 @@ public class AppController {
     @PostMapping("/list/page/vo")
     public BaseResponse<Page<AppVO>> listGoodAppVOByPage(@RequestBody AppQueryRequest appQueryRequest, HttpServletRequest request) {
         ThrowUtils.throwIf(appQueryRequest == null, ErrorCode.PARAMS_ERROR);
-        // 校验登录
-        userService.getUser(request);
+        // 精选应用列表为公开接口，未登录也可访问
         long pageNum = appQueryRequest.getPageNum();
         long pageSize = appQueryRequest.getPageSize();
         // 每页最多 20 条

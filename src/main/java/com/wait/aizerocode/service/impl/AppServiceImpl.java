@@ -129,6 +129,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         app.setInitPrompt(initPrompt);
         app.setAppName("app_"+RandomUtil.randomString(10));
         app.setUserId(loginUser.getId());
+        app.setCodeGenType(CodeGenTypeEnum.HTML.getValue());
         boolean result = this.save(app);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return app.getId();
