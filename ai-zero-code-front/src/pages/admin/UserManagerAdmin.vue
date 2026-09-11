@@ -30,7 +30,8 @@ const loadData = async () => {
         if (res.data.code === 0) {
             const page = res.data.data
             dataList.value = page?.records ?? []
-            total.value = page?.totalRow ?? 0
+            // totalRow 为后端 long 序列化的字符串，转 number 用于分页组件（行数不会超精度）
+            total.value = Number(page?.totalRow ?? 0)
         } else {
             message.error('加载数据失败：' + (res.data.message ?? '未知错误'))
         }

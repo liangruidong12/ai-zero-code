@@ -1,19 +1,109 @@
 declare namespace API {
+  type adminGetAppByIdParams = {
+    // 后端 Long 统一序列化为字符串，避免 JS number 精度丢失
+    id: string
+  }
+
+  type App = {
+    id?: string
+    appName?: string
+    cover?: string
+    initPrompt?: string
+    codeGenType?: string
+    deployKey?: string
+    deployedTime?: string
+    priority?: number
+    userId?: string
+    editTime?: string
+    createTime?: string
+    updateTime?: string
+    isDelete?: number
+  }
+
+  type AppAddRequest = {
+    initPrompt?: string
+  }
+
+  type AppAdminUpdateRequest = {
+    id?: string
+    appName?: string
+    cover?: string
+    priority?: number
+  }
+
+  type AppDeployRequest = {
+    appId?: string
+  }
+
+  type AppQueryRequest = {
+    pageNum?: number
+    pageSize?: number
+    sortField?: string
+    sortOrder?: string
+    id?: string
+    appName?: string
+    cover?: string
+    initPrompt?: string
+    codeGenType?: string
+    deployKey?: string
+    priority?: number
+    userId?: string
+  }
+
+  type AppUpdateRequest = {
+    id?: string
+    appName?: string
+  }
+
+  type AppVO = {
+    id?: string
+    appName?: string
+    cover?: string
+    initPrompt?: string
+    codeGenType?: string
+    deployKey?: string
+    deployedTime?: string
+    priority?: number
+    userId?: string
+    createTime?: string
+    updateTime?: string
+    user?: UserVO
+  }
+
+  type BaseResponseApp = {
+    code?: number
+    data?: App
+    message?: string
+  }
+
+  type BaseResponseAppVO = {
+    code?: number
+    data?: AppVO
+    message?: string
+  }
+
   type BaseResponseBoolean = {
     code?: number
     data?: boolean
     message?: string
   }
 
-  type BaseResponseLoginUserVO = {
+  type BaseResponseLong = {
     code?: number
-    data?: LoginUserVO
+    // 后端 Long 统一序列化为字符串，避免 JS number 精度丢失
+    data?: string
     message?: string
   }
 
-  type BaseResponseLong = {
+  type BaseResponsePageApp = {
     code?: number
-    data?: number
+    data?: PageApp
+    message?: string
+  }
+
+  type BaseResponsePageAppVO = {
+    code?: number
+    data?: PageAppVO
     message?: string
   }
 
@@ -41,40 +131,59 @@ declare namespace API {
     message?: string
   }
 
+  type chatToGenCodeParams = {
+    appId: string
+    message: string
+  }
+
   type DeleteRequest = {
-    id?: number
+    id?: string
+  }
+
+  type getAppVOByIdParams = {
+    id: string
   }
 
   type getUserByIdParams = {
-    id: number
+    id: string
   }
 
   type getUserVOByIdParams = {
-    id: number
+    id: string
   }
 
-  type LoginUserVO = {
-    id?: number
-    userAccount?: string
-    userName?: string
-    userAvatar?: string
-    userProfile?: string
-    userRole?: string
-    createTime?: string
-    updateTime?: string
+  type PageApp = {
+    records?: App[]
+    // mybatis-flex Page 中分页字段为 long，后端统一序列化为字符串
+    pageNumber?: string
+    pageSize?: string
+    totalPage?: string
+    totalRow?: string
+    optimizeCountQuery?: boolean
+  }
+
+  type PageAppVO = {
+    records?: AppVO[]
+    pageNumber?: string
+    pageSize?: string
+    totalPage?: string
+    totalRow?: string
+    optimizeCountQuery?: boolean
   }
 
   type PageUserVO = {
     records?: UserVO[]
-    pageNumber?: number
-    pageSize?: number
-    totalPage?: number
-    totalRow?: number
+    pageNumber?: string
+    pageSize?: string
+    totalPage?: string
+    totalRow?: string
     optimizeCountQuery?: boolean
   }
 
+  type ServerSentEventString = true
+
   type User = {
-    id?: number
+    id?: string
     userAccount?: string
     userPassword?: string
     userName?: string
@@ -105,7 +214,7 @@ declare namespace API {
     pageSize?: number
     sortField?: string
     sortOrder?: string
-    id?: number
+    id?: string
     userName?: string
     userAccount?: string
     userProfile?: string
@@ -119,7 +228,7 @@ declare namespace API {
   }
 
   type UserUpdateRequest = {
-    id?: number
+    id?: string
     userName?: string
     userAvatar?: string
     userProfile?: string
@@ -127,7 +236,17 @@ declare namespace API {
   }
 
   type UserVO = {
-    id?: number
+    id?: string
+    userAccount?: string
+    userName?: string
+    userAvatar?: string
+    userProfile?: string
+    userRole?: string
+    createTime?: string
+  }
+
+  type LoginUserVO = {
+    id?: string
     userAccount?: string
     userName?: string
     userAvatar?: string

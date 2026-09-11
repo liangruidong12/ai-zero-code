@@ -1,10 +1,20 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import GlobalHeader from '@/components/GlobalHeader.vue'
 import GlobalFooter from '@/components/GlobalFooter.vue'
+
+const route = useRoute()
+
+// 全屏页面（如应用对话页）不展示全局头部和底部
+const isFullscreen = computed(() => route.meta.fullscreen === true)
 </script>
 
 <template>
-  <a-layout class="basic-layout">
+  <!-- 全屏布局：仅渲染页面内容 -->
+  <router-view v-if="isFullscreen" />
+  <!-- 默认布局：全局头部 + 内容区 + 全局底部 -->
+  <a-layout v-else class="basic-layout">
     <GlobalHeader />
     <a-layout-content class="layout-content">
       <router-view />
