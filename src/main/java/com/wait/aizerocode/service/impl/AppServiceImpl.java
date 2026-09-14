@@ -16,16 +16,21 @@ import com.wait.aizerocode.mapper.AppMapper;
 import com.wait.aizerocode.model.dto.app.AppAddRequest;
 import com.wait.aizerocode.model.dto.app.AppQueryRequest;
 import com.wait.aizerocode.model.dto.app.AppUpdateRequest;
+import com.wait.aizerocode.model.dto.chathistory.ChatHistorySaveRequest;
 import com.wait.aizerocode.model.entity.App;
 import com.wait.aizerocode.model.entity.User;
+import com.wait.aizerocode.model.enums.ChatHistoryMessageTypeEnum;
 import com.wait.aizerocode.model.enums.CodeGenTypeEnum;
 import com.wait.aizerocode.model.vo.AppVO;
 import com.wait.aizerocode.model.vo.UserVO;
 import com.wait.aizerocode.service.AppService;
+import com.wait.aizerocode.service.ChatHistoryService;
 import com.wait.aizerocode.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 
 import java.io.File;
@@ -50,6 +55,10 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
 
     @Autowired
     private AiCodeGeneratorFacade aiCodeGeneratorFacade;
+
+    @Autowired
+    @Lazy
+    private ChatHistoryService chatHistoryService;
 
 
     @Override
@@ -106,12 +115,44 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         App app=this.getById(appId);
         if(!app.getUserId().equals(loginUser.getId()))
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR,"无法访问该应用");
+
+        ChatHistorySaveRequest chatHistorySaveRequest = new ChatHistorySaveRequest();
+
+        chatHistorySaveRequest.setAppId(appId);
+        chatHistorySaveRequest.setMessage(message);
+        chatHistorySaveRequest.setMessageType(ChatHistoryMessageTypeEnum.USER.getValue());
+
+        chatHistoryService.saveMessage(chatHistorySaveRequest,loginUser);
+
         //3调用ai接口
         String codeGenTypeValue = app.getCodeGenType();
         CodeGenTypeEnum codeGenTypeEnum = CodeGenTypeEnum.getEnumByValue(codeGenTypeValue);
 
-        return aiCodeGeneratorFacade.generateAndSaveCode(message,codeGenTypeEnum,appId);
+        Flux<String> flux = aiCodeGeneratorFacade.generateAndSaveCode(message, codeGenTypeEnum, appId);
+
+        StringBuilder aiResponseBuilder=new  StringBuilder();
+        chatHistorySaveRequest.setMessageType(ChatHistoryMessageTypeEnum.AI.getValue());
+
+        return flux.map(chunk->{
+            aiResponseBuilder.append(chunk);
+            return chunk;
+        })
+                .doOnComplete(()-> {
+            String aiResponse=aiResponseBuilder.toString();
+            if(StrUtil.isNotBlank(aiResponse)){
+                chatHistorySaveRequest.setMessage(aiResponse);
+                chatHistoryService.saveMessage(chatHistorySaveRequest,loginUser);
+            }
+
+                })
+                .doOnError(error->{
+                    String errorMessage="AI回复失败"+error.getMessage();
+                    chatHistorySaveRequest.setMessage(errorMessage);
+                    chatHistorySaveRequest.setMessageType(ChatHistoryMessageTypeEnum.AI.getValue());
+                });
+
     }
+
 
     @Override
     public long addApp(AppAddRequest appAddRequest, HttpServletRequest request) {
@@ -157,6 +198,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean deleteApp(Long id, HttpServletRequest request) {
         ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAMS_ERROR);
         User loginUser = userService.getUser(request);
@@ -168,6 +210,21 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         }
         boolean result = this.removeById(id);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        // 级联删除该应用的所有对话历史
+        chatHistoryService.removeByAppId(id);
+        return true;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean adminDeleteApp(Long id) {
+        ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAMS_ERROR);
+        App app = this.getById(id);
+        ThrowUtils.throwIf(app == null, ErrorCode.NOT_FOUND_ERROR);
+        boolean result = this.removeById(id);
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        // 级联删除该应用的所有对话历史
+        chatHistoryService.removeByAppId(id);
         return true;
     }
 

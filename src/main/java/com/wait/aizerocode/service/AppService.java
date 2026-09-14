@@ -52,6 +52,14 @@ public interface AppService extends IService<App> {
     boolean deleteApp(Long id, HttpServletRequest request);
 
     /**
+     * 管理员删除任意应用（级联删除对话历史）
+     *
+     * @param id 应用 id
+     * @return 是否删除成功
+     */
+    boolean adminDeleteApp(Long id);
+
+    /**
      * 获取应用封装类
      *
      * @param app 应用

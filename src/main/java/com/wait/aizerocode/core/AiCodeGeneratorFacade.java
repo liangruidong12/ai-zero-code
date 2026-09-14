@@ -2,6 +2,7 @@ package com.wait.aizerocode.core;
 
 
 import com.wait.aizerocode.ai.AiCodeGeneratorService;
+import com.wait.aizerocode.ai.AiCodeGeneratorServiceFactory;
 import com.wait.aizerocode.core.parser.CodeParserExecutor;
 import com.wait.aizerocode.core.saver.CodeFileSaverExecutor;
 import com.wait.aizerocode.exception.BusinessException;
@@ -21,8 +22,10 @@ import java.io.File;
 @Slf4j
 public class AiCodeGeneratorFacade {
 
+
+
     @Resource
-    private AiCodeGeneratorService aiCodeGeneratorService;
+    private AiCodeGeneratorServiceFactory aiCodeGeneratorServiceFactory;
 
 
 
@@ -37,6 +40,8 @@ public class AiCodeGeneratorFacade {
         if (codeGenTypeEnum == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "生成类型不能为空");
         }
+
+        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId);
 
         return switch (codeGenTypeEnum) {
             case HTML -> {

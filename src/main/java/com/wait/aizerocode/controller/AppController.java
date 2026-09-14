@@ -14,11 +14,14 @@ import com.wait.aizerocode.exception.BusinessException;
 import com.wait.aizerocode.exception.ErrorCode;
 import com.wait.aizerocode.exception.ThrowUtils;
 import com.wait.aizerocode.model.dto.app.*;
+import com.wait.aizerocode.model.dto.chathistory.ChatHistorySaveRequest;
 import com.wait.aizerocode.model.entity.App;
 import com.wait.aizerocode.model.entity.User;
+import com.wait.aizerocode.model.enums.ChatHistoryMessageTypeEnum;
 import com.wait.aizerocode.model.vo.AppVO;
 import com.wait.aizerocode.model.vo.UserVO;
 import com.wait.aizerocode.service.AppService;
+import com.wait.aizerocode.service.ChatHistoryService;
 import com.wait.aizerocode.service.UserService;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -51,6 +54,9 @@ public class AppController {
     private UserService userService;
     @Autowired
     private RestClient.Builder builder;
+
+    @Autowired
+    private ChatHistoryService chatHistoryService;
 
 
 
@@ -239,7 +245,7 @@ public class AppController {
         if (deleteRequest == null || deleteRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        boolean result = appService.removeById(deleteRequest.getId());
+        boolean result = appService.adminDeleteApp(deleteRequest.getId());
         return ResultUtils.success(result);
     }
 
