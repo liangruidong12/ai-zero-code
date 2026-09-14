@@ -41,8 +41,8 @@ const handleCreate = async () => {
   try {
     const res = await addApp({ initPrompt })
     if (res.data.code === 0 && res.data.data) {
-      // 创建成功后跳转到对话页，并自动发送初始提示词
-      router.push(`/app/chat/${res.data.data}?init=1`)
+      // 创建成功后跳转到对话页；对话页检测到无历史消息时会自动发送初始提示词
+      router.push(`/app/chat/${res.data.data}`)
     } else {
       message.error('创建失败：' + (res.data.message ?? '未知错误'))
     }

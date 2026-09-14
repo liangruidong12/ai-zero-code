@@ -14,11 +14,19 @@ import {
 import logo from '@/assets/logo.svg'
 import myAxios from '@/request'
 import { deployApp, getAppVoById } from '@/api/appController.ts'
+import { listChatHistoryVoByPage } from '@/api/chatHistoryController.ts'
+import { useLoginUserStore } from '@/stores/loginUser.ts'
 
 const route = useRoute()
 const router = useRouter()
 // 应用 ID 全链路保持字符串，避免大整数转 Number 丢失精度
 const appId = route.params.id as string
+
+// 当前登录用户（路由守卫已加载），用于判断是否为自己的应用
+const loginUserStore = useLoginUserStore()
+
+// 历史消息每页条数
+const HISTORY_PAGE_SIZE = 10
 
 // 后端服务地址（与 request.ts 中的 baseURL 保持一致）
 const API_BASE = (myAxios.defaults.baseURL as string) ?? ''
@@ -35,17 +43,97 @@ const previewUrl = computed(() => {
 
 // ============ 对话消息 ============
 interface ChatMessage {
+  id: string
   role: 'user' | 'assistant'
   content: string
+  createTime?: string
 }
 
 const messages = ref<ChatMessage[]>([])
 const inputMessage = ref('')
 const streaming = ref(false)
-// 网页预览是否就绪（流式生成完成后展示）
+// 网页预览是否就绪（进入时已有生成结果或流式生成完成后展示）
 const previewReady = ref(false)
 // 用于强制刷新 iframe
 const previewKey = ref(0)
+
+// ============ 对话历史（游标分页） ============
+const historyLoading = ref(false)
+// 是否还有更早的历史消息
+const hasMoreHistory = ref(false)
+// 历史消息总数（首次加载时记录）
+const historyTotal = ref(0)
+// 历史是否加载成功（非应用创建者无权查看历史）
+const historyLoaded = ref(false)
+// 是否为自己的应用
+const isMyApp = computed(
+  () => !!app.value?.userId && app.value.userId === loginUserStore.loginUser.id,
+)
+// 游标：已加载消息中最旧一条的创建时间
+let oldestCreateTime = ''
+// 本地新增消息的自增序号（用于生成列表 key）
+let localMessageSeq = 0
+
+// ChatHistoryVO -> ChatMessage
+const toChatMessage = (record: API.ChatHistoryVO): ChatMessage => ({
+  id: String(record.id ?? `local-${localMessageSeq++}`),
+  role: record.messageType === 'user' ? 'user' : 'assistant',
+  content: record.message ?? '',
+  createTime: record.createTime,
+})
+
+/**
+ * 加载对话历史（游标分页，每页 10 条，升序展示）
+ * 首次不传 lastCreateTime 获取最新一页；加载更多时传已加载最旧一条的创建时间往前翻页
+ */
+const loadChatHistory = async (isLoadMore: boolean) => {
+  if (historyLoading.value) return
+  historyLoading.value = true
+  // 记录加载前的滚动位置，加载完成后保持视口锚定
+  const listEl = messageListRef.value
+  const prevTop = listEl?.scrollTop ?? 0
+  const prevHeight = listEl?.scrollHeight ?? 0
+  try {
+    const res = await listChatHistoryVoByPage({
+      appId,
+      pageNum: 1,
+      pageSize: HISTORY_PAGE_SIZE,
+      lastCreateTime: isLoadMore ? oldestCreateTime : undefined,
+    })
+    if (res.data.code === 0) {
+      historyLoaded.value = true
+      const page = res.data.data
+      const records = page?.records ?? []
+      historyTotal.value = Number(page?.totalRow ?? 0)
+      // 后端按创建时间倒序返回最新一页，反转为升序展示
+      const olderMessages = records.map(toChatMessage).reverse()
+      if (isLoadMore) {
+        messages.value = [...olderMessages, ...messages.value]
+      } else {
+        messages.value = olderMessages
+      }
+      // 更新游标为当前最旧一条历史消息的创建时间
+      if (messages.value[0]?.createTime) {
+        oldestCreateTime = messages.value[0].createTime as string
+      }
+      // 返回满页说明可能还有更早的消息
+      hasMoreHistory.value = records.length >= HISTORY_PAGE_SIZE
+    } else {
+      historyLoaded.value = false
+    }
+  } catch {
+    // 无权限查看历史（如访问他人应用）时静默降级
+    historyLoaded.value = false
+  } finally {
+    historyLoading.value = false
+    if (isLoadMore) {
+      await nextTick()
+      if (listEl) {
+        listEl.scrollTop = listEl.scrollHeight - prevHeight + prevTop
+      }
+    }
+  }
+}
 
 const messageListRef = ref<HTMLElement>()
 let abortController: AbortController | null = null
@@ -65,12 +153,17 @@ const scrollToBottom = async () => {
  */
 const startChat = async (userMessage: string) => {
   // 追加用户消息和空的 AI 消息
-  messages.value.push({ role: 'user', content: userMessage })
-  const aiMessage: ChatMessage = reactive({ role: 'assistant', content: '' })
+  messages.value.push({ id: `local-${localMessageSeq++}`, role: 'user', content: userMessage })
+  const aiMessage: ChatMessage = reactive({
+    id: `local-${localMessageSeq++}`,
+    role: 'assistant',
+    content: '',
+  })
   messages.value.push(aiMessage)
   streaming.value = true
   await scrollToBottom()
 
+  // 对话消息由后端 SSE 接口（chatToGenCode）统一持久化，前端不再重复保存
   abortController = new AbortController()
   try {
     const url = `${API_BASE}/app/chat/gen/code?appId=${appId}&message=${encodeURIComponent(userMessage)}`
@@ -193,11 +286,19 @@ onMounted(async () => {
     return
   }
 
-  // 从主页新建跳转（?init=1）：自动将初始提示词作为消息发送给 AI
-  if (route.query.init === '1' && app.value.initPrompt) {
-    startChat(app.value.initPrompt)
-  } else {
-    // 再次进入对话页：直接展示已生成的网站
+  // 加载最近一页对话历史（10 条）
+  await loadChatHistory(false)
+
+  if (historyLoaded.value) {
+    if (isMyApp.value && historyTotal.value === 0 && app.value.initPrompt) {
+      // 自己的应用且没有任何对话历史：自动将初始提示词作为第一条消息发送
+      startChat(app.value.initPrompt)
+    } else if (historyTotal.value >= 2) {
+      // 至少 2 条对话记录说明 AI 已完成过生成，直接展示网站
+      previewReady.value = true
+    }
+  } else if (app.value.codeGenType) {
+    // 无权查看对话历史（非创建者访问他人应用）：应用已生成过则直接展示网站
     previewReady.value = true
   }
 })
@@ -404,6 +505,12 @@ onUnmounted(() => {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
+}
+
+.load-more-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
 }
 
 .chat-empty {

@@ -4,6 +4,7 @@ import UserLoginPage from '../pages/user/UserLoginPage.vue'
 import UserRegisterPage from '../pages/user/UserRegisterPage.vue'
 import UserManagerAdmin from '../pages/admin/UserManagerAdmin.vue'
 import AppManagerAdmin from '../pages/admin/AppManagerAdmin.vue'
+import ChatHistoryManagerAdmin from '../pages/admin/ChatHistoryManagerAdmin.vue'
 import AppChatPage from '../pages/app/AppChatPage.vue'
 import AppEditPage from '../pages/app/AppEditPage.vue'
 
@@ -34,6 +35,11 @@ const router = createRouter({
       path: '/admin/app',
       name: '应用管理',
       component: AppManagerAdmin,
+    },
+    {
+      path: '/admin/chatHistory',
+      name: '对话管理',
+      component: ChatHistoryManagerAdmin,
     },
     {
       // 应用生成对话页（全屏布局，不带全局头部/底部）

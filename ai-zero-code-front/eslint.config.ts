@@ -15,7 +15,8 @@ export default defineConfigWithVueTs(
     files: ['**/*.{vue,ts,mts,tsx}'],
   },
 
-  globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**']),
+  // src/api 目录为后端接口代码生成器产物（含模板自带的 @ts-ignore），不参与 lint
+  globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**', 'src/api/**']),
 
   ...pluginVue.configs['flat/essential'],
   vueTsConfigs.recommended,

@@ -107,6 +107,18 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponsePageChatHistory = {
+    code?: number
+    data?: PageChatHistory
+    message?: string
+  }
+
+  type BaseResponsePageChatHistoryVO = {
+    code?: number
+    data?: PageChatHistoryVO
+    message?: string
+  }
+
   type BaseResponsePageUserVO = {
     code?: number
     data?: PageUserVO
@@ -131,6 +143,48 @@ declare namespace API {
     message?: string
   }
 
+  type ChatHistory = {
+    id?: string
+    message?: string
+    messageType?: string
+    appId?: string
+    userId?: string
+    createTime?: string
+    updateTime?: string
+    isDelete?: number
+  }
+
+  type ChatHistoryQueryRequest = {
+    pageNum?: number
+    pageSize?: number
+    sortField?: string
+    sortOrder?: string
+    id?: string
+    message?: string
+    messageType?: string
+    appId?: string
+    userId?: string
+    // 游标：查询早于该创建时间的消息
+    lastCreateTime?: string
+  }
+
+  type ChatHistorySaveRequest = {
+    appId?: string
+    message?: string
+    messageType?: string
+  }
+
+  type ChatHistoryVO = {
+    id?: string
+    message?: string
+    messageType?: string
+    appId?: string
+    userId?: string
+    createTime?: string
+    updateTime?: string
+    user?: UserVO
+  }
+
   type chatToGenCodeParams = {
     appId: string
     message: string
@@ -152,6 +206,16 @@ declare namespace API {
     id: string
   }
 
+  type LoginUserVO = {
+    id?: string
+    userAccount?: string
+    userName?: string
+    userAvatar?: string
+    userProfile?: string
+    userRole?: string
+    createTime?: string
+  }
+
   type PageApp = {
     records?: App[]
     // mybatis-flex Page 中分页字段为 long，后端统一序列化为字符串
@@ -164,6 +228,24 @@ declare namespace API {
 
   type PageAppVO = {
     records?: AppVO[]
+    pageNumber?: string
+    pageSize?: string
+    totalPage?: string
+    totalRow?: string
+    optimizeCountQuery?: boolean
+  }
+
+  type PageChatHistory = {
+    records?: ChatHistory[]
+    pageNumber?: string
+    pageSize?: string
+    totalPage?: string
+    totalRow?: string
+    optimizeCountQuery?: boolean
+  }
+
+  type PageChatHistoryVO = {
+    records?: ChatHistoryVO[]
     pageNumber?: string
     pageSize?: string
     totalPage?: string
@@ -236,16 +318,6 @@ declare namespace API {
   }
 
   type UserVO = {
-    id?: string
-    userAccount?: string
-    userName?: string
-    userAvatar?: string
-    userProfile?: string
-    userRole?: string
-    createTime?: string
-  }
-
-  type LoginUserVO = {
     id?: string
     userAccount?: string
     userName?: string

@@ -21,6 +21,7 @@ interface MenuItem {
 const allMenus: MenuItem[] = [
   { key: '/', label: '主页' },
   { key: '/admin/app', label: '应用管理', requireAdmin: true },
+  { key: '/admin/chatHistory', label: '对话管理', requireAdmin: true },
   { key: '/admin/user', label: '用户管理', requireAdmin: true },
 ]
 // 仅在管理员登录时展示需要管理员权限的菜单
