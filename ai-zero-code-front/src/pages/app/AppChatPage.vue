@@ -35,11 +35,18 @@ const API_BASE = (myAxios.defaults.baseURL as string) ?? ''
 const app = ref<API.AppVO>()
 const appLoadFailed = ref(false)
 
-// 生成网站的本地访问地址：http://localhost:8123/api/static/{codeGenType}_{appId}/
+// 生成网站的本地访问地址：
+// HTML/MULTI_FILE → http://localhost:8123/api/static/{codeGenType}_{appId}/
+// VUE_PROJECT → http://localhost:8123/api/static/vue_project_{appId}/dist/（构建产物目录）
 const previewUrl = computed(() => {
   if (!app.value?.codeGenType) return ''
-  return `${API_BASE}/api/static/${app.value.codeGenType}_${appId}/`
+  const base = `${API_BASE}/api/static/${app.value.codeGenType}_${appId}`
+  // VUE_PROJECT 的预览产物在 dist 子目录下
+  return app.value.codeGenType === 'vue_project' ? `${base}/dist/` : `${base}/`
 })
+
+// 是否为 Vue 项目（需要异步构建 dist）
+const isVueProject = computed(() => app.value?.codeGenType === 'vue_project')
 
 // ============ 对话消息 ============
 interface ChatMessage {
@@ -54,8 +61,34 @@ const inputMessage = ref('')
 const streaming = ref(false)
 // 网页预览是否就绪（进入时已有生成结果或流式生成完成后展示）
 const previewReady = ref(false)
+// Vue 项目异步构建中（npm install + npm run build）
+const building = ref(false)
 // 用于强制刷新 iframe
 const previewKey = ref(0)
+
+// 轮询检查 dist 目录是否就绪（fetch 预览 URL，返回 200 即构建完成）
+const waitForBuild = async () => {
+  building.value = true
+  const url = previewUrl.value
+  const maxAttempts = 60 // 最多轮询 60 次（约 2 分钟）
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const resp = await fetch(url, { method: 'HEAD', credentials: 'include' })
+      if (resp.ok) {
+        building.value = false
+        previewReady.value = true
+        previewKey.value += 1
+        return
+      }
+    } catch {
+      // dist 还不存在，继续等待
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+  }
+  // 超时：构建可能失败或耗时过长
+  building.value = false
+  message.warning('项目构建超时，请稍后刷新或重新部署')
+}
 
 // ============ 对话历史（游标分页） ============
 const historyLoading = ref(false)
@@ -227,9 +260,13 @@ const startChat = async (userMessage: string) => {
   } finally {
     streaming.value = false
     abortController = null
-    // 流式接口全部返回后，展示生成的网站效果
-    previewReady.value = true
-    previewKey.value += 1
+    // 流式接口返回后，对 VUE_PROJECT 需等待异步构建 dist 完成再展示预览
+    if (isVueProject.value) {
+      waitForBuild()
+    } else {
+      previewReady.value = true
+      previewKey.value += 1
+    }
     await scrollToBottom()
   }
 }
@@ -412,7 +449,9 @@ onUnmounted(() => {
           class="preview-iframe" />
         <div v-else class="preview-placeholder">
           <a-spin size="large" />
-          <p class="placeholder-text">AI 正在生成网站，请稍候……</p>
+          <p class="placeholder-text">
+            {{ building ? '正在构建 Vue 项目（npm install + npm run build），请稍候……' : 'AI 正在生成网站，请稍候……' }}
+          </p>
         </div>
       </section>
     </main>
