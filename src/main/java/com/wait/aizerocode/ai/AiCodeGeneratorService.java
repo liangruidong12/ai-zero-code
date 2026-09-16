@@ -2,7 +2,10 @@ package com.wait.aizerocode.ai;
 
 import com.wait.aizerocode.ai.model.HtmlCodeResult;
 import com.wait.aizerocode.ai.model.MultiFileCodeResult;
+import dev.langchain4j.service.MemoryId;
 import dev.langchain4j.service.SystemMessage;
+import dev.langchain4j.service.TokenStream;
+import dev.langchain4j.service.UserMessage;
 import reactor.core.publisher.Flux;
 
 public interface AiCodeGeneratorService {
@@ -31,5 +34,9 @@ public interface AiCodeGeneratorService {
      */
     @SystemMessage(fromResource = "prompt/codegen-multi-file-system-prompt.txt")
     Flux<String> generateMultiFileCodeStream(String userMessage);
+
+
+    @SystemMessage(fromResource = "prompt/codegen-vue-project-system-prompt.txt")
+    TokenStream generateVueProjectCodeStream(@MemoryId long appId, @UserMessage String userMessage);
 
 }

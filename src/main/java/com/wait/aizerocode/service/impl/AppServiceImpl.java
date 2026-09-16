@@ -9,6 +9,8 @@ import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.wait.aizerocode.constant.AppConstant;
 import com.wait.aizerocode.core.AiCodeGeneratorFacade;
+import com.wait.aizerocode.core.builder.VueProjectBuilder;
+import com.wait.aizerocode.core.handler.StreamHandlerExecutor;
 import com.wait.aizerocode.exception.BusinessException;
 import com.wait.aizerocode.exception.ErrorCode;
 import com.wait.aizerocode.exception.ThrowUtils;
@@ -26,7 +28,9 @@ import com.wait.aizerocode.model.vo.UserVO;
 import com.wait.aizerocode.service.AppService;
 import com.wait.aizerocode.service.ChatHistoryService;
 import com.wait.aizerocode.service.UserService;
+import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -37,6 +41,7 @@ import java.io.File;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.StreamHandler;
 import java.util.stream.Collectors;
 
 /**
@@ -45,6 +50,7 @@ import java.util.stream.Collectors;
  * @author waitwait
  */
 @Service
+@Slf4j
 public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppService {
 
     @Autowired
@@ -60,6 +66,11 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     @Lazy
     private ChatHistoryService chatHistoryService;
 
+    @Resource
+    private StreamHandlerExecutor streamHandler;
+
+    @Resource
+    private VueProjectBuilder  vueProjectBuilder;
 
     @Override
     public String deployApp(Long appId, User loginUser) {
@@ -84,6 +95,21 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         if (!sourceDir.exists() || !sourceDir.isDirectory()) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "应用代码路径不存在，请先生成应用");
         }
+
+        //7 vue项目处理
+        if(codeGenType.equals(CodeGenTypeEnum.VUE_PROJECT.getValue())){
+            boolean buildSuccess = vueProjectBuilder.buildProject(sourceDirPath);
+            ThrowUtils.throwIf(!buildSuccess,ErrorCode.SYSTEM_ERROR,"vue代码构建失败");
+
+            File fileDist=new File(sourceDirPath,"dist");
+            ThrowUtils.throwIf(!fileDist.exists(),ErrorCode.SYSTEM_ERROR,"vue项目构建成功，但dist目录未生成");
+
+            sourceDir=fileDist;
+            log.info("项目构建成功，将部署dist目录:{}",sourceDir,fileDist.getAbsolutePath());
+
+
+        }
+
 
         // 8. 复制文件到部署目录
         String deployDirPath = AppConstant.CODE_DEPLOY_ROOT_DIR + File.separator + deployKey;
@@ -115,41 +141,46 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         App app=this.getById(appId);
         if(!app.getUserId().equals(loginUser.getId()))
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR,"无法访问该应用");
+        ThrowUtils.throwIf(app.getCodeGenType()==null,ErrorCode.PARAMS_ERROR,"没有生成类型");
+
+
+
+        //3调用ai接口
+        String codeGenTypeValue = app.getCodeGenType();
+        CodeGenTypeEnum codeGenTypeEnum = CodeGenTypeEnum.getEnumByValue(codeGenTypeValue);
 
         ChatHistorySaveRequest chatHistorySaveRequest = new ChatHistorySaveRequest();
 
         chatHistorySaveRequest.setAppId(appId);
         chatHistorySaveRequest.setMessage(message);
         chatHistorySaveRequest.setMessageType(ChatHistoryMessageTypeEnum.USER.getValue());
-
+        //保存首条用户消息。
         chatHistoryService.saveMessage(chatHistorySaveRequest,loginUser);
 
-        //3调用ai接口
-        String codeGenTypeValue = app.getCodeGenType();
-        CodeGenTypeEnum codeGenTypeEnum = CodeGenTypeEnum.getEnumByValue(codeGenTypeValue);
 
-        Flux<String> flux = aiCodeGeneratorFacade.generateAndSaveCode(message, codeGenTypeEnum, appId);
+        Flux<String> fluxStream = aiCodeGeneratorFacade.generateAndSaveCode(message, codeGenTypeEnum, appId);
 
-        StringBuilder aiResponseBuilder=new  StringBuilder();
-        chatHistorySaveRequest.setMessageType(ChatHistoryMessageTypeEnum.AI.getValue());
+        return streamHandler.doExecute(fluxStream,chatHistoryService,appId,loginUser,codeGenTypeEnum);
 
-        return flux.map(chunk->{
-            aiResponseBuilder.append(chunk);
-            return chunk;
-        })
-                .doOnComplete(()-> {
-            String aiResponse=aiResponseBuilder.toString();
-            if(StrUtil.isNotBlank(aiResponse)){
-                chatHistorySaveRequest.setMessage(aiResponse);
-                chatHistoryService.saveMessage(chatHistorySaveRequest,loginUser);
-            }
 
-                })
-                .doOnError(error->{
-                    String errorMessage="AI回复失败"+error.getMessage();
-                    chatHistorySaveRequest.setMessage(errorMessage);
-                    chatHistorySaveRequest.setMessageType(ChatHistoryMessageTypeEnum.AI.getValue());
-                });
+
+//        return flux.map(chunk->{
+//            aiResponseBuilder.append(chunk);
+//            return chunk;
+//        })
+//                .doOnComplete(()-> {
+//            String aiResponse=aiResponseBuilder.toString();
+//            if(StrUtil.isNotBlank(aiResponse)){
+//                chatHistorySaveRequest.setMessage(aiResponse);
+//                chatHistoryService.saveMessage(chatHistorySaveRequest,loginUser);
+//            }
+//
+//                })
+//                .doOnError(error->{
+//                    String errorMessage="AI回复失败"+error.getMessage();
+//                    chatHistorySaveRequest.setMessage(errorMessage);
+//                    chatHistorySaveRequest.setMessageType(ChatHistoryMessageTypeEnum.AI.getValue());
+//                });
 
     }
 
@@ -170,7 +201,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         app.setInitPrompt(initPrompt);
         app.setAppName("app_"+RandomUtil.randomString(10));
         app.setUserId(loginUser.getId());
-        app.setCodeGenType(CodeGenTypeEnum.HTML.getValue());
+        app.setCodeGenType(CodeGenTypeEnum.VUE_PROJECT.getValue());
         boolean result = this.save(app);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return app.getId();
