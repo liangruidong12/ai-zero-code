@@ -41,3 +41,9 @@ knife4j:
   enable: true
   setting:
     language: zh_cn
+
+minio:
+  endpoint: http://192.168.237.128:9000
+  access-key: minioadmin
+  secret-key: minioadmin
+  bucket-name: aizerocode

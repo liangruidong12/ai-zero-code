@@ -27,6 +27,7 @@ import com.wait.aizerocode.model.vo.AppVO;
 import com.wait.aizerocode.model.vo.UserVO;
 import com.wait.aizerocode.service.AppService;
 import com.wait.aizerocode.service.ChatHistoryService;
+import com.wait.aizerocode.service.ScreenShotService;
 import com.wait.aizerocode.service.UserService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
@@ -41,7 +42,6 @@ import java.io.File;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.StreamHandler;
 import java.util.stream.Collectors;
 
 /**
@@ -71,6 +71,13 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
 
     @Resource
     private VueProjectBuilder  vueProjectBuilder;
+
+    @Resource
+    private ScreenShotService screenShotService;
+
+
+
+
 
     @Override
     public String deployApp(Long appId, User loginUser) {
@@ -125,6 +132,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         updateApp.setDeployedTime(LocalDateTime.now());
         boolean updateResult = this.updateById(updateApp);
         ThrowUtils.throwIf(!updateResult, ErrorCode.OPERATION_ERROR, "更新应用部署信息失败");
+
+        screenShotService.generateScreenShotAsync(appId,AppConstant.CODE_DEPLOY_HOST+File.separator+deployKey);
 
         return String.format("%s/%s",AppConstant.CODE_DEPLOY_HOST,deployKey);
 

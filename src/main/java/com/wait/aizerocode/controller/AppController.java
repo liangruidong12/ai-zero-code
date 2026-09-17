@@ -193,6 +193,8 @@ public class AppController {
         // 仅查询当前用户的应用
 
         appQueryRequest.setUserId(loginUser.getId());
+        appQueryRequest.setSortField("createTime");
+
         QueryWrapper wrapper = appService.getQueryWrapper(appQueryRequest);
 
         Page<App> appPage = appService.page(Page.of(pageNum, pageSize), wrapper);

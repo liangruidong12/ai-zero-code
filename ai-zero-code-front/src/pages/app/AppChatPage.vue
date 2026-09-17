@@ -5,11 +5,17 @@ import { message } from 'ant-design-vue'
 import {
   ArrowUpOutlined,
   CloudUploadOutlined,
+  CopyOutlined,
+  DeleteOutlined,
   EditOutlined,
   ExportOutlined,
+  FileAddOutlined,
+  FileTextOutlined,
+  FolderOpenOutlined,
   HomeOutlined,
   PaperClipOutlined,
   ThunderboltOutlined,
+  ToolOutlined,
 } from '@ant-design/icons-vue'
 import logo from '@/assets/logo.svg'
 import myAxios from '@/request'
@@ -54,6 +60,123 @@ interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   createTime?: string
+}
+
+// ============ AI 消息内容分段解析 ============
+interface ContentSegment {
+  type: 'text' | 'tool-select' | 'tool-call'
+  text?: string
+  toolName?: string
+  action?: string
+  filePath?: string
+  language?: string
+  code?: string
+  complete?: boolean // 代码块是否已闭合（收到结束 ```）
+}
+
+// 工具操作 → 图标组件映射
+const toolIconMap: Record<string, any> = {
+  '写入文件': FileAddOutlined,
+  '读取文件': FileTextOutlined,
+  '修改文件': EditOutlined,
+  '删除文件': DeleteOutlined,
+  '读取目录': FolderOpenOutlined,
+}
+
+/**
+ * 将 AI 消息内容解析为分段：纯文本 / 工具选择 / 工具调用+代码块
+ * 后端格式：
+ *   [选择工具] 写入文件
+ *   [工具调用] 写入文件 package.json
+ *   ```json
+ *   { ... }
+ *   ```
+ */
+const parseMessageContent = (content: string): ContentSegment[] => {
+  const segments: ContentSegment[] = []
+  const lines = content.split('\n')
+  let i = 0
+  let textBuffer: string[] = []
+
+  const flushText = () => {
+    if (textBuffer.length > 0) {
+      const text = textBuffer.join('\n')
+      if (text.trim()) segments.push({ type: 'text', text })
+      textBuffer = []
+    }
+  }
+
+  while (i < lines.length) {
+    const line = lines[i]
+
+    // [选择工具] 写入文件
+    if (line.match(/^\[选择工具\]/)) {
+      flushText()
+      segments.push({ type: 'tool-select', toolName: line.replace(/^\[选择工具\]\s*/, '').trim() })
+      i++
+      continue
+    }
+
+    // [工具调用] 写入文件 package.json
+    if (line.match(/^\[工具调用\]/)) {
+      flushText()
+      const rest = line.replace(/^\[工具调用\]\s*/, '').trim()
+      const parts = rest.split(/\s+/)
+      const action = parts[0] || ''
+      const filePath = parts.slice(1).join(' ') || ''
+
+      // 检查后续是否紧跟代码块
+      if (i + 1 < lines.length && lines[i + 1].match(/^```/)) {
+        const langMatch = lines[i + 1].match(/^```(\w*)/)
+        const language = langMatch ? langMatch[1] : ''
+        i += 2 // 跳过 [工具调用] 行和 ``` 行
+        const codeLines: string[] = []
+        while (i < lines.length && !lines[i].match(/^```/)) {
+          codeLines.push(lines[i])
+          i++
+        }
+        // 判断代码块是否已闭合
+        const isComplete = i < lines.length && !!lines[i].match(/^```/)
+        if (isComplete) i++
+        segments.push({ type: 'tool-call', action, filePath, language, code: codeLines.join('\n'), complete: isComplete })
+      } else {
+        segments.push({ type: 'tool-call', action, filePath })
+        i++
+      }
+      continue
+    }
+
+    // 独立代码块（不跟在 [工具调用] 后面）
+    if (line.match(/^```/)) {
+      flushText()
+      const langMatch = line.match(/^```(\w*)/)
+      const language = langMatch ? langMatch[1] : ''
+      i++
+      const codeLines: string[] = []
+      while (i < lines.length && !lines[i].match(/^```/)) {
+        codeLines.push(lines[i])
+        i++
+      }
+      const isComplete = i < lines.length && !!lines[i].match(/^```/)
+      if (isComplete) i++
+      segments.push({ type: 'tool-call', action: '代码块', filePath: '', language, code: codeLines.join('\n'), complete: isComplete })
+      continue
+    }
+
+    textBuffer.push(line)
+    i++
+  }
+  flushText()
+  return segments
+}
+
+// 复制代码到剪贴板
+const copyCode = (code: string) => {
+  navigator.clipboard.writeText(code).then(() => {
+    message.success('已复制到剪贴板')
+  }).catch(() => {
+    message.error('复制失败')
+  })
 }
 
 const messages = ref<ChatMessage[]>([])
@@ -146,8 +269,9 @@ const loadChatHistory = async (isLoadMore: boolean) => {
         messages.value = olderMessages
       }
       // 更新游标为当前最旧一条历史消息的创建时间
-      if (messages.value[0]?.createTime) {
-        oldestCreateTime = messages.value[0].createTime as string
+      const firstMsg = messages.value[0]
+      if (firstMsg?.createTime) {
+        oldestCreateTime = firstMsg.createTime
       }
       // 返回满页说明可能还有更早的消息
       hasMoreHistory.value = records.length >= HISTORY_PAGE_SIZE
@@ -327,14 +451,15 @@ onMounted(async () => {
   await loadChatHistory(false)
 
   if (historyLoaded.value) {
-    if (isMyApp.value && historyTotal.value === 0 && app.value.initPrompt) {
+    const initPrompt = app.value?.initPrompt
+    if (isMyApp.value && historyTotal.value === 0 && initPrompt) {
       // 自己的应用且没有任何对话历史：自动将初始提示词作为第一条消息发送
-      startChat(app.value.initPrompt)
+      startChat(initPrompt)
     } else if (historyTotal.value >= 2) {
       // 至少 2 条对话记录说明 AI 已完成过生成，直接展示网站
       previewReady.value = true
     }
-  } else if (app.value.codeGenType) {
+  } else if (app.value?.codeGenType) {
     // 无权查看对话历史（非创建者访问他人应用）：应用已生成过则直接展示网站
     previewReady.value = true
   }
@@ -390,7 +515,44 @@ onUnmounted(() => {
             <img v-if="msg.role === 'assistant'" :src="logo" alt="ai" class="message-avatar" />
             <div class="message-bubble">
               <template v-if="msg.content">
-                <span class="message-text">{{ msg.content }}</span>
+                <!-- 用户消息：纯文本 -->
+                <span v-if="msg.role === 'user'" class="message-text">{{ msg.content }}</span>
+                <!-- AI 消息：流式时直接输出纯文本，结束后分段渲染 -->
+                <span v-else-if="streaming && index === messages.length - 1" class="message-text">{{ msg.content
+                  }}</span>
+                <template v-else>
+                  <template v-for="(seg, si) in parseMessageContent(msg.content)" :key="si">
+                    <!-- 纯文本段 -->
+                    <span v-if="seg.type === 'text'" class="message-text">{{ seg.text }}</span>
+                    <!-- 工具选择提示 -->
+                    <div v-else-if="seg.type === 'tool-select'" class="tool-badge tool-select-badge">
+                      <ToolOutlined class="tool-badge-icon" />
+                      <span>{{ seg.toolName }}</span>
+                    </div>
+                    <!-- 工具调用 + 代码块 -->
+                    <div v-else-if="seg.type === 'tool-call'" class="tool-call-block">
+                      <div class="tool-call-header">
+                        <component :is="toolIconMap[seg.action] ?? ToolOutlined" class="tool-call-icon" />
+                        <span class="tool-call-action">{{ seg.action }}</span>
+                        <span v-if="seg.filePath" class="tool-call-file">{{ seg.filePath }}</span>
+                      </div>
+                      <!-- 代码块已闭合：显示样式化代码块 -->
+                      <div v-if="seg.code && seg.complete" class="code-block">
+                        <div class="code-block-header">
+                          <span class="code-lang">{{ seg.language || 'text' }}</span>
+                          <a-button type="text" size="small" @click="copyCode(seg.code!)">
+                            <template #icon>
+                              <CopyOutlined />
+                            </template>
+                          </a-button>
+                        </div>
+                        <pre class="code-block-body"><code>{{ seg.code }}</code></pre>
+                      </div>
+                      <!-- 代码块未闭合：流式纯文本输出 -->
+                      <pre v-else-if="seg.code" class="code-streaming">{{ seg.code }}</pre>
+                    </div>
+                  </template>
+                </template>
               </template>
               <a-spin v-else-if="streaming && index === messages.length - 1" size="small" />
             </div>
@@ -610,6 +772,116 @@ onUnmounted(() => {
 }
 
 .message-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ============ 工具调用 & 代码块样式 ============ */
+.message-ai .message-bubble {
+  overflow: hidden;
+}
+
+/* 工具选择提示 */
+.tool-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  margin: 2px 0;
+}
+
+.tool-select-badge {
+  background: #f0f5ff;
+  color: #4f6ef2;
+  border: 1px solid #adc6ff;
+}
+
+.tool-badge-icon {
+  font-size: 13px;
+}
+
+/* 工具调用块 */
+.tool-call-block {
+  margin: 8px 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e8e8e8;
+}
+
+.tool-call-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #fafafa;
+  border-bottom: 1px solid #e8e8e8;
+  font-size: 13px;
+}
+
+.tool-call-icon {
+  font-size: 15px;
+  color: #4f6ef2;
+}
+
+.tool-call-action {
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.75);
+}
+
+.tool-call-file {
+  color: rgba(0, 0, 0, 0.55);
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 12px;
+}
+
+/* 代码块 */
+.code-block {
+  background: #1e1e2e;
+  overflow: hidden;
+}
+
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  background: #181825;
+}
+
+.code-lang {
+  font-size: 11px;
+  color: #a6adc8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.code-block-header :deep(.ant-btn) {
+  color: #a6adc8;
+}
+
+.code-block-body {
+  margin: 0;
+  padding: 12px 16px;
+  overflow-x: auto;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #cdd6f4;
+}
+
+/* 流式代码（未闭合时）纯文本输出 */
+.code-streaming {
+  margin: 0;
+  padding: 10px 14px;
+  background: #f7f8fa;
+  border-radius: 0 0 8px 8px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: rgba(0, 0, 0, 0.75);
   white-space: pre-wrap;
   word-break: break-word;
 }

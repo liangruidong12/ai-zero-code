@@ -21,7 +21,7 @@ public class ReasoningStreamingChatModelConfig {
     @Bean
     public StreamingChatModel reasoningStreamingChatModel() {
 
-        final int maxToken=8192;
+        final int maxToken=16484;
 
         System.out.println("------------------------------"+modelName);
 
