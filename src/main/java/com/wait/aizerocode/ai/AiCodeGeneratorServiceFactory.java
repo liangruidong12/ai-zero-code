@@ -5,7 +5,7 @@ package com.wait.aizerocode.ai;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 
-import com.wait.aizerocode.ai.tools.FileWriteTool;
+import com.wait.aizerocode.ai.tools.*;
 import com.wait.aizerocode.model.enums.CodeGenTypeEnum;
 import com.wait.aizerocode.service.ChatHistoryService;
 import dev.langchain4j.community.store.memory.chat.redis.RedisChatMemoryStore;
@@ -39,6 +39,10 @@ public class AiCodeGeneratorServiceFactory {
 
     @Autowired
     private StreamingChatModel reasoningStreamingChatModel;
+
+    @Resource
+    private ToolManager toolManager;
+
 
 
 //    @Bean
@@ -78,7 +82,7 @@ public class AiCodeGeneratorServiceFactory {
             case VUE_PROJECT -> AiServices.builder(AiCodeGeneratorService.class)
                     .streamingChatModel(reasoningStreamingChatModel)
                     .chatMemoryProvider(memoryId -> chatMemory)
-                    .tools(new FileWriteTool())
+                    .tools(toolManager.getAllTools())
                     .hallucinatedToolNameStrategy(toolExecutionRequest -> ToolExecutionResultMessage.from(toolExecutionRequest,
                             "Error,there is no tool called "+toolExecutionRequest.name()))
                     .build();
