@@ -7,6 +7,8 @@ import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
+import com.wait.aizerocode.ai.AiCodeGenTypeRoutingService;
+import com.wait.aizerocode.ai.AiCodeGenTypeRoutingServiceFactory;
 import com.wait.aizerocode.constant.AppConstant;
 import com.wait.aizerocode.core.AiCodeGeneratorFacade;
 import com.wait.aizerocode.core.builder.VueProjectBuilder;
@@ -74,6 +76,9 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
 
     @Resource
     private ScreenShotService screenShotService;
+
+    @Resource
+    private AiCodeGenTypeRoutingService aiCodeGenTypeRoutingService;
 
 
 
@@ -208,9 +213,13 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         // 创建应用
         App app = new App();
         app.setInitPrompt(initPrompt);
-        app.setAppName("app_"+RandomUtil.randomString(10));
+        app.setAppName(initPrompt.substring(0,Math.min(12,initPrompt.length())));
         app.setUserId(loginUser.getId());
-        app.setCodeGenType(CodeGenTypeEnum.VUE_PROJECT.getValue());
+
+        // 使用 AI 智能选择代码生成类型
+        CodeGenTypeEnum selectedCodeGenType = aiCodeGenTypeRoutingService.routeCodeGenType(initPrompt);
+        app.setCodeGenType(selectedCodeGenType.getValue());
+
         boolean result = this.save(app);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return app.getId();
