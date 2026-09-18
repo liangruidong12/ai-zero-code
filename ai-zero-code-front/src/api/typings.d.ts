@@ -1,11 +1,10 @@
 declare namespace API {
   type adminGetAppByIdParams = {
-    // 后端 Long 统一序列化为字符串，避免 JS number 精度丢失
-    id: string
+    id: number
   }
 
   type App = {
-    id?: string
+    id?: number
     appName?: string
     cover?: string
     initPrompt?: string
@@ -13,7 +12,7 @@ declare namespace API {
     deployKey?: string
     deployedTime?: string
     priority?: number
-    userId?: string
+    userId?: number
     editTime?: string
     createTime?: string
     updateTime?: string
@@ -25,14 +24,14 @@ declare namespace API {
   }
 
   type AppAdminUpdateRequest = {
-    id?: string
+    id?: number
     appName?: string
     cover?: string
     priority?: number
   }
 
   type AppDeployRequest = {
-    appId?: string
+    appId?: number
   }
 
   type AppQueryRequest = {
@@ -40,23 +39,23 @@ declare namespace API {
     pageSize?: number
     sortField?: string
     sortOrder?: string
-    id?: string
+    id?: number
     appName?: string
     cover?: string
     initPrompt?: string
     codeGenType?: string
     deployKey?: string
     priority?: number
-    userId?: string
+    userId?: number
   }
 
   type AppUpdateRequest = {
-    id?: string
+    id?: number
     appName?: string
   }
 
   type AppVO = {
-    id?: string
+    id?: number
     appName?: string
     cover?: string
     initPrompt?: string
@@ -64,7 +63,7 @@ declare namespace API {
     deployKey?: string
     deployedTime?: string
     priority?: number
-    userId?: string
+    userId?: number
     createTime?: string
     updateTime?: string
     user?: UserVO
@@ -90,8 +89,7 @@ declare namespace API {
 
   type BaseResponseLong = {
     code?: number
-    // 后端 Long 统一序列化为字符串，避免 JS number 精度丢失
-    data?: string
+    data?: number
     message?: string
   }
 
@@ -144,11 +142,11 @@ declare namespace API {
   }
 
   type ChatHistory = {
-    id?: string
+    id?: number
     message?: string
     messageType?: string
-    appId?: string
-    userId?: string
+    appId?: number
+    userId?: number
     createTime?: string
     updateTime?: string
     isDelete?: number
@@ -159,113 +157,105 @@ declare namespace API {
     pageSize?: number
     sortField?: string
     sortOrder?: string
-    id?: string
+    id?: number
     message?: string
     messageType?: string
-    appId?: string
-    userId?: string
-    // 游标：查询早于该创建时间的消息
+    appId?: number
+    userId?: number
     lastCreateTime?: string
   }
 
   type ChatHistorySaveRequest = {
-    appId?: string
+    appId?: number
     message?: string
     messageType?: string
   }
 
   type ChatHistoryVO = {
-    id?: string
+    id?: number
     message?: string
     messageType?: string
-    appId?: string
-    userId?: string
+    appId?: number
+    userId?: number
     createTime?: string
     updateTime?: string
     user?: UserVO
   }
 
   type chatToGenCodeParams = {
-    appId: string
+    appId: number
     message: string
   }
 
   type DeleteRequest = {
-    id?: string
+    id?: number
+  }
+
+  type downloadAppCodeParams = {
+    appId: number
   }
 
   type getAppVOByIdParams = {
-    id: string
+    id: number
   }
 
   type getUserByIdParams = {
-    id: string
+    id: number
   }
 
   type getUserVOByIdParams = {
-    id: string
-  }
-
-  type LoginUserVO = {
-    id?: string
-    userAccount?: string
-    userName?: string
-    userAvatar?: string
-    userProfile?: string
-    userRole?: string
-    createTime?: string
+    id: number
   }
 
   type PageApp = {
     records?: App[]
-    // mybatis-flex Page 中分页字段为 long，后端统一序列化为字符串
-    pageNumber?: string
-    pageSize?: string
-    totalPage?: string
-    totalRow?: string
+    pageNumber?: number
+    pageSize?: number
+    totalPage?: number
+    totalRow?: number
     optimizeCountQuery?: boolean
   }
 
   type PageAppVO = {
     records?: AppVO[]
-    pageNumber?: string
-    pageSize?: string
-    totalPage?: string
-    totalRow?: string
+    pageNumber?: number
+    pageSize?: number
+    totalPage?: number
+    totalRow?: number
     optimizeCountQuery?: boolean
   }
 
   type PageChatHistory = {
     records?: ChatHistory[]
-    pageNumber?: string
-    pageSize?: string
-    totalPage?: string
-    totalRow?: string
+    pageNumber?: number
+    pageSize?: number
+    totalPage?: number
+    totalRow?: number
     optimizeCountQuery?: boolean
   }
 
   type PageChatHistoryVO = {
     records?: ChatHistoryVO[]
-    pageNumber?: string
-    pageSize?: string
-    totalPage?: string
-    totalRow?: string
+    pageNumber?: number
+    pageSize?: number
+    totalPage?: number
+    totalRow?: number
     optimizeCountQuery?: boolean
   }
 
   type PageUserVO = {
     records?: UserVO[]
-    pageNumber?: string
-    pageSize?: string
-    totalPage?: string
-    totalRow?: string
+    pageNumber?: number
+    pageSize?: number
+    totalPage?: number
+    totalRow?: number
     optimizeCountQuery?: boolean
   }
 
   type ServerSentEventString = true
 
   type User = {
-    id?: string
+    id?: number
     userAccount?: string
     userPassword?: string
     userName?: string
@@ -296,7 +286,7 @@ declare namespace API {
     pageSize?: number
     sortField?: string
     sortOrder?: string
-    id?: string
+    id?: number
     userName?: string
     userAccount?: string
     userProfile?: string
@@ -310,7 +300,7 @@ declare namespace API {
   }
 
   type UserUpdateRequest = {
-    id?: string
+    id?: number
     userName?: string
     userAvatar?: string
     userProfile?: string
@@ -318,7 +308,7 @@ declare namespace API {
   }
 
   type UserVO = {
-    id?: string
+    id?: number
     userAccount?: string
     userName?: string
     userAvatar?: string

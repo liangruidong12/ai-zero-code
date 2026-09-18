@@ -22,6 +22,7 @@ import myAxios from '@/request'
 import { deployApp, getAppVoById } from '@/api/appController.ts'
 import { listChatHistoryVoByPage } from '@/api/chatHistoryController.ts'
 import { useLoginUserStore } from '@/stores/loginUser.ts'
+import { useVisualEditor } from '@/composables/useVisualEditor'
 
 const route = useRoute()
 const router = useRouter()
@@ -71,7 +72,6 @@ interface ContentSegment {
   filePath?: string
   language?: string
   code?: string
-  complete?: boolean // 代码块是否已闭合（收到结束 ```）
 }
 
 // 工具操作 → 图标组件映射
@@ -135,10 +135,9 @@ const parseMessageContent = (content: string): ContentSegment[] => {
           codeLines.push(lines[i])
           i++
         }
-        // 判断代码块是否已闭合
-        const isComplete = i < lines.length && !!lines[i].match(/^```/)
-        if (isComplete) i++
-        segments.push({ type: 'tool-call', action, filePath, language, code: codeLines.join('\n'), complete: isComplete })
+        // 跳过闭合 ```（流式中可能还没闭合）
+        if (i < lines.length && lines[i].match(/^```/)) i++
+        segments.push({ type: 'tool-call', action, filePath, language, code: codeLines.join('\n') })
       } else {
         segments.push({ type: 'tool-call', action, filePath })
         i++
@@ -157,9 +156,8 @@ const parseMessageContent = (content: string): ContentSegment[] => {
         codeLines.push(lines[i])
         i++
       }
-      const isComplete = i < lines.length && !!lines[i].match(/^```/)
-      if (isComplete) i++
-      segments.push({ type: 'tool-call', action: '代码块', filePath: '', language, code: codeLines.join('\n'), complete: isComplete })
+      if (i < lines.length && lines[i].match(/^```/)) i++
+      segments.push({ type: 'tool-call', action: '代码块', filePath: '', language, code: codeLines.join('\n') })
       continue
     }
 
@@ -188,6 +186,24 @@ const previewReady = ref(false)
 const building = ref(false)
 // 用于强制刷新 iframe
 const previewKey = ref(0)
+
+// ============ 可视化编辑 ============
+const { editMode, selectedElement, iframeRef, enterEditMode, exitEditMode, clearSelection, buildElementContext } = useVisualEditor(previewUrl)
+
+const handleToggleEditMode = () => {
+  if (editMode.value) {
+    exitEditMode()
+  } else {
+    if (!previewReady.value) {
+      message.warning('请先等待网站生成完成')
+      return
+    }
+    enterEditMode()
+    if (editMode.value) {
+      message.info('已进入编辑模式，点击预览中的元素进行选中')
+    }
+  }
+}
 
 // 轮询检查 dist 目录是否就绪（fetch 预览 URL，返回 200 即构建完成）
 const waitForBuild = async () => {
@@ -403,8 +419,16 @@ const handleSend = () => {
     return
   }
   if (streaming.value) return
+  // 如果有选中的元素，将元素信息附加到提示词
+  let finalMessage = text
+  if (selectedElement.value) {
+    finalMessage += buildElementContext()
+  }
   inputMessage.value = ''
-  startChat(text)
+  // 发送后清除选中元素并退出编辑模式
+  clearSelection()
+  exitEditMode()
+  startChat(finalMessage)
 }
 
 // ============ 部署 ============
@@ -517,9 +541,7 @@ onUnmounted(() => {
               <template v-if="msg.content">
                 <!-- 用户消息：纯文本 -->
                 <span v-if="msg.role === 'user'" class="message-text">{{ msg.content }}</span>
-                <!-- AI 消息：流式时直接输出纯文本，结束后分段渲染 -->
-                <span v-else-if="streaming && index === messages.length - 1" class="message-text">{{ msg.content
-                  }}</span>
+                <!-- AI 消息：分段渲染 -->
                 <template v-else>
                   <template v-for="(seg, si) in parseMessageContent(msg.content)" :key="si">
                     <!-- 纯文本段 -->
@@ -536,8 +558,7 @@ onUnmounted(() => {
                         <span class="tool-call-action">{{ seg.action }}</span>
                         <span v-if="seg.filePath" class="tool-call-file">{{ seg.filePath }}</span>
                       </div>
-                      <!-- 代码块已闭合：显示样式化代码块 -->
-                      <div v-if="seg.code && seg.complete" class="code-block">
+                      <div v-if="seg.code" class="code-block">
                         <div class="code-block-header">
                           <span class="code-lang">{{ seg.language || 'text' }}</span>
                           <a-button type="text" size="small" @click="copyCode(seg.code!)">
@@ -548,8 +569,6 @@ onUnmounted(() => {
                         </div>
                         <pre class="code-block-body"><code>{{ seg.code }}</code></pre>
                       </div>
-                      <!-- 代码块未闭合：流式纯文本输出 -->
-                      <pre v-else-if="seg.code" class="code-streaming">{{ seg.code }}</pre>
                     </div>
                   </template>
                 </template>
@@ -565,6 +584,18 @@ onUnmounted(() => {
 
         <!-- 用户消息输入框 -->
         <div class="input-area">
+          <a-alert v-if="selectedElement" type="info" show-icon closable @close="clearSelection"
+            style="margin-bottom: 8px; text-align: left;">
+            <template #message>
+              <span class="selected-element-info">
+                &lt;{{ selectedElement.tagName }}&gt;
+                <span v-if="selectedElement.id"> #{{ selectedElement.id }} </span>
+                <span v-if="selectedElement.className"> .{{ selectedElement.className }} </span>
+                | {{ selectedElement.positionDesc }}
+                <span v-if="selectedElement.text"> | "{{ selectedElement.text.slice(0, 30) }}"</span>
+              </span>
+            </template>
+          </a-alert>
           <a-textarea v-model:value="inputMessage" class="chat-input" placeholder="描述越详细，页面越具体，可以一步一步完善生成效果"
             :auto-size="{ minRows: 2, maxRows: 5 }" :bordered="false" :disabled="streaming"
             @keydown.enter.exact.prevent="handleSend" />
@@ -578,8 +609,8 @@ onUnmounted(() => {
                   上传
                 </a-button>
               </a-tooltip>
-              <a-tooltip title="功能暂未开放">
-                <a-button size="small" disabled>
+              <a-tooltip :title="editMode ? '退出编辑模式' : '进入编辑模式'">
+                <a-button size="small" :type="editMode ? 'primary' : 'default'" @click="handleToggleEditMode">
                   <template #icon>
                     <EditOutlined />
                   </template>
@@ -607,7 +638,7 @@ onUnmounted(() => {
 
       <!-- 右侧网页展示区域 -->
       <section class="preview-panel">
-        <iframe v-if="previewReady && previewUrl" :key="previewKey" :src="previewUrl" title="网站预览"
+        <iframe v-if="previewReady && previewUrl" ref="iframeRef" :key="previewKey" :src="previewUrl" title="网站预览"
           class="preview-iframe" />
         <div v-else class="preview-placeholder">
           <a-spin size="large" />
@@ -872,20 +903,6 @@ onUnmounted(() => {
   color: #cdd6f4;
 }
 
-/* 流式代码（未闭合时）纯文本输出 */
-.code-streaming {
-  margin: 0;
-  padding: 10px 14px;
-  background: #f7f8fa;
-  border-radius: 0 0 8px 8px;
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-  font-size: 13px;
-  line-height: 1.6;
-  color: rgba(0, 0, 0, 0.75);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
 /* 输入区 */
 .input-area {
   flex-shrink: 0;
@@ -908,6 +925,13 @@ onUnmounted(() => {
 .input-tools {
   display: flex;
   gap: 8px;
+}
+
+/* 选中元素信息 */
+.selected-element-info {
+  font-size: 12px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  color: rgba(0, 0, 0, 0.65);
 }
 
 /* 右侧网页展示区 */
