@@ -128,9 +128,9 @@ const openApp = (record: API.AppVO) => {
   router.push(`/app/chat/${record.id}`)
 }
 
-// 新标签页打开应用信息修改页
+// 跳转到应用信息修改页
 const handleEdit = (record: API.AppVO) => {
-  window.open(`/app/edit/${record.id}`, '_blank')
+  router.push(`/app/edit/${record.id}`)
 }
 
 // 删除自己的应用

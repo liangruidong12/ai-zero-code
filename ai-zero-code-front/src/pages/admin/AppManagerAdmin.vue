@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { message, Modal } from 'ant-design-vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 import type { TableColumnsType } from 'ant-design-vue'
 import {
   adminDeleteApp,
@@ -89,9 +92,9 @@ const columns: TableColumnsType<API.App> = [
   { title: '操作', key: 'action', width: 190, fixed: 'right' },
 ]
 
-// ============ 编辑：新开页面跳转到应用信息修改页 ============
+// ============ 编辑：跳转到应用信息修改页 ============
 const handleEdit = (record: API.App) => {
-  window.open(`/app/edit/${record.id}`, '_blank')
+  router.push(`/app/edit/${record.id}`)
 }
 
 // ============ 精选：设置优先级为 99 ============

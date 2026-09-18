@@ -55,6 +55,18 @@ const previewUrl = computed(() => {
 // 是否为 Vue 项目（需要异步构建 dist）
 const isVueProject = computed(() => app.value?.codeGenType === 'vue_project')
 
+// 生成类型标签
+const codeGenTypeMap: Record<string, { text: string; color: string }> = {
+  html: { text: 'HTML', color: 'blue' },
+  multi_file: { text: '多文件', color: 'green' },
+  vue_project: { text: 'Vue 项目', color: 'purple' },
+}
+const codeGenTypeTag = computed(() => {
+  const t = app.value?.codeGenType
+  if (!t) return null
+  return codeGenTypeMap[t] ?? { text: t, color: 'default' }
+})
+
 // ============ 对话消息 ============
 interface ChatMessage {
   id: string
@@ -502,6 +514,8 @@ onUnmounted(() => {
       <div class="top-bar-left" @click="router.push('/')">
         <img :src="logo" alt="logo" class="bar-logo" />
         <span class="app-name">{{ app?.appName ?? '应用加载中...' }}</span>
+        <a-tag v-if="codeGenTypeTag" :color="codeGenTypeTag.color" class="gen-type-tag">{{ codeGenTypeTag.text
+        }}</a-tag>
         <HomeOutlined class="home-icon" title="返回主页" />
       </div>
       <div class="top-bar-right">
@@ -692,6 +706,11 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.gen-type-tag {
+  margin-left: 4px;
+  font-size: 12px;
 }
 
 .home-icon {

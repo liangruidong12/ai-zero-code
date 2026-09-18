@@ -21,10 +21,17 @@ export default defineConfig({
       '/app': {
         target: 'http://localhost:8123',
         changeOrigin: true,
+        // 浏览器导航请求（Accept: text/html）是 Vue Router 前端路由，不转发给后端
+        bypass(req) {
+          if (req.headers.accept?.includes('text/html')) return req.url
+        },
       },
       '/user': {
         target: 'http://localhost:8123',
         changeOrigin: true,
+        bypass(req) {
+          if (req.headers.accept?.includes('text/html')) return req.url
+        },
       },
       '/chatHistory': {
         target: 'http://localhost:8123',
